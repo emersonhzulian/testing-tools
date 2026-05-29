@@ -1,0 +1,85 @@
+version: '3'
+
+vars:
+  KIND_CLUSTER_NAME: '{{.KIND_CLUSTER_NAME | default "grafana"}}'
+
+tasks:
+  full-setup:
+    desc: Run the full grafana-cloud setup — namespace, secret, Helm, build, load and deploy
+    cmds:
+      - task: setup
+      - task: wait-for-operator
+      - task: build-and-load
+      - task: deploy-dotnet-api
+      - task: deploy-dotnet-api2
+      - task: wait-for-apps
+      - task: port-foward
+
+  setup:
+    desc: Create namespace + secret, then install opentelemetry-kube-stack via Helm
+    dotenv: ['{{.TASKFILE_DIR}}/.env']
+    cmds:
+      - |
+        kubectl create namespace opentelemetry-operator-system \
+          || echo "WARNING: Could not create namespace 'opentelemetry-operator-system' (may already exist or insufficient permissions). Continuing..."
+      - |
+        kubectl create secret generic grafana-cloud-auth \
+          --namespace opentelemetry-operator-system \
+          --from-literal=GRAFANA_CLOUD_INSTANCE_ID="$GRAFANA_CLOUD_INSTANCE_ID" \
+          --from-literal=GRAFANA_CLOUD_OTLP_ENDPOINT="$GRAFANA_CLOUD_OTLP_ENDPOINT" \
+          --from-literal=GRAFANA_CLOUD_API_KEY="$GRAFANA_CLOUD_API_KEY" \
+          --from-literal=GRAFANA_CLOUD_BASIC_AUTH_HEADER="$GRAFANA_CLOUD_BASIC_AUTH_HEADER" \
+          || echo "WARNING: Could not create secret 'grafana-cloud-auth' (may already exist). Continuing..."
+      - helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+      - helm repo update
+      - |
+        helm upgrade opentelemetry-stack \
+          open-telemetry/opentelemetry-kube-stack \
+          --version 0.14.6 \
+          --install \
+          --namespace opentelemetry-operator-system \
+          --set opentelemetry-operator.admissionWebhooks.certManager.enabled=$OTEL_OPERATOR_CERT_MANAGER_ENABLED \
+          --set-string clusterName="$K8S_CLUSTER_NAME" \
+          --set-string 'instrumentation.resource.resourceAttributes.deployment\.environment\.name'="$DEPLOYMENT_ENVIRONMENT_NAME" \
+          -f {{.TASKFILE_DIR}}/open-telemetry-config.yaml
+
+  build-and-load:
+    desc: Build the dotnet-api Docker image and load it into the KIND cluster
+    cmds:
+      - docker build -t dotnet-api:latest -f {{.ROOT_DIR}}/apps/dotnet-api/dockerfile {{.ROOT_DIR}}/apps/dotnet-api
+      - kind load docker-image dotnet-api:latest --name "{{.KIND_CLUSTER_NAME}}"
+
+  wait-for-operator:
+    desc: Wait for the OTel operator deployment and webhook certificate to be ready
+    cmds:
+      - kubectl rollout status deployment/opentelemetry-stack-opentelemetry-operator -n opentelemetry-operator-system --timeout=120s
+      - |
+        echo "Waiting for operator webhook certificate to stabilize..."
+        kubectl wait --for=condition=Available deployment/opentelemetry-stack-opentelemetry-operator \
+          -n opentelemetry-operator-system --timeout=120s
+      - |
+        echo "Waiting for MutatingWebhookConfiguration to be ready..."
+        until kubectl get mutatingwebhookconfiguration | grep -q opentelemetry; do sleep 2; done
+        echo "Webhook is registered, waiting 15s for cert rotation to settle..."
+        sleep 15
+
+  deploy-dotnet-api:
+    desc: Apply kubernetes manifests for dotnet-api
+    cmds:
+      - kubectl apply -f {{.TASKFILE_DIR}}/dotnet-api/
+
+  deploy-dotnet-api2:
+    desc: Apply kubernetes manifests for dotnet-api2
+    cmds:
+      - kubectl apply -f {{.TASKFILE_DIR}}/dotnet-api2/
+
+  wait-for-apps:
+    desc: Wait until dotnet-api and dotnet-api2 pods are fully ready
+    cmds:
+      - kubectl rollout status deployment/dotnet-api -n default --timeout=120s
+      - kubectl rollout status deployment/dotnet-api2 -n default --timeout=120s
+  
+  port-foward:
+    desc: Port foward to test service
+    cmds:
+      - kubectl port-forward svc/dotnet-api 80

@@ -1,0 +1,25 @@
+@baseUrl = http://localhost:80
+
+### Message (generates logs at all levels)
+GET {{baseUrl}}/message
+
+### Call Other Instance
+GET {{baseUrl}}/call-other
+
+### Submit
+POST {{baseUrl}}/submit
+Content-Type: application/json
+
+{
+  "text": "hello from http client"
+}
+
+# Checks
+### Startup
+GET {{baseUrl}}/startup
+
+### Readiness
+GET {{baseUrl}}/ready
+
+### Health
+GET {{baseUrl}}/health

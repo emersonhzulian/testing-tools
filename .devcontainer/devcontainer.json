@@ -1,0 +1,49 @@
+{
+	"name": "Testing Sandbox",
+	"build": {
+		"dockerfile": "dockerfile",
+		"context": ".."
+	},
+	"workspaceFolder": "/workspace",
+	"mounts": [
+		"source=${localWorkspaceFolder},target=/workspace,type=bind",
+		"source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+	],
+	"runArgs": [
+		"--privileged",
+		"--network=host"
+	],
+	
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"redhat.vscode-yaml",
+				"ms-kubernetes-tools.vscode-kubernetes-tools",
+				"weaveworks.vscode-gitops-tools",
+				"pkief.material-icon-theme",
+				"ms-azuretools.vscode-docker",
+				"ms-azuretools.vscode-containers",
+				"GitHub.copilot-chat",
+				"humao.rest-client"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"terminal.integrated.suggest.enabled": false,
+				"vs-kubernetes": {
+					"vs-kubernetes.crd-code-completion": "disabled",
+					"disable-linters": ["resource-limits"]
+				},
+				"workbench.iconTheme": "material-icon-theme",
+				"explorer.compactFolders": false
+			}
+		}
+	},
+
+	"containerEnv": {
+		"KUBECONFIG": "/workspace/kubeconfig",
+		"TALOSCONFIG": "/workspace/talosconfig"
+	},
+
+	"postCreateCommand": "echo '\n\nSandbox container ready!\n\n'",
+	"remoteUser": "root"
+}

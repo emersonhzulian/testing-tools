@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnet-api2
+  labels:
+    app: dotnet-api2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dotnet-api2
+  template:
+    metadata:
+      labels:
+        app: dotnet-api2
+        # app.kubernetes.io/name: dotnet-api
+        # app.kubernetes.io/version: "1.0.0"
+      annotations:
+        # Enable .NET auto-instrumentation
+        instrumentation.opentelemetry.io/inject-dotnet: "opentelemetry-operator-system/otel-instrumentation"
+        
+        # Optional: For Alpine Linux images, uncomment:
+        # instrumentation.opentelemetry.io/otel-dotnet-auto-runtime: "linux-musl-x64"
+        
+        # Optional: Custom service name via annotation
+        # resource.opentelemetry.io/service.name: "dotnet-api"
+        
+        # Optional: Additional resource attributes
+        # resource.opentelemetry.io/custom.team: "backend-team"
+    spec:
+      containers:
+      - name: api
+        image: dotnet-api:latest
+        imagePullPolicy: Never # Crucial: tells K8s not to pull from a remote registry
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: OTHER_INSTANCE_BASE_URL
+          value: http://dotnet-api.default.svc.cluster.local:80
+        startupProbe:
+          httpGet:
+            path: /startup
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 60
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 60
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

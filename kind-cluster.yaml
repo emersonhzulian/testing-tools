@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  image: kindest/node:v1.35.0
+# - role: worker
+#   image: kindest/node:v1.35.0
+#   extraPortMappings:
+#   - containerPort: 32000      # The NodePort you will use in Kubernetes
+#     hostPort: 9999            # The port on your local machine
+#     listenAddress: "0.0.0.0"  # Optional, defaults to "0.0.0.0"
+#     protocol: tcp

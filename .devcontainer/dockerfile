@@ -1,0 +1,98 @@
+FROM alpine
+
+RUN apk update
+
+# bash
+RUN apk add --no-cache bash
+
+# git
+RUN apk add --no-cache git
+
+# bash-completion
+RUN apk add --no-cache bash-completion
+
+# curl
+RUN apk add --no-cache curl
+
+# nano
+RUN apk add --no-cache nano
+
+# dnsutils
+RUN apk add --no-cache bind-tools
+
+# openssl
+RUN apk add --no-cache openssl
+
+# iperf3
+RUN apk add --no-cache iperf3
+
+# docker
+RUN apk add --no-cache docker-cli
+
+# envsubst
+RUN apk add --no-cache envsubst
+
+# htpasswd
+RUN apk add --no-cache apache2-utils
+
+# yq
+RUN curl -Lo /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+    && chmod +x /usr/local/bin/yq
+
+# kubectl
+RUN curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x ./kubectl \
+    && mv ./kubectl /usr/local/bin/kubectl
+    
+# kubectl bash completion
+RUN echo 'source <(kubectl completion bash)' >> /root/.bashrc \
+    && echo 'source <(kubectl completion bash)' >> /root/.profile
+
+# kustomize
+RUN KUSTOMIZE_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/kustomize/releases | grep '"tag_name":' | grep 'kustomize' | head -1 | sed -E 's/.*"kustomize\/([^"]+)".*/\1/') \
+    && curl -Lo /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+    && tar -C /tmp/ -zxvf /tmp/kustomize.tar.gz \
+    && mv /tmp/kustomize /usr/local/bin/kustomize \
+    && chmod +x /usr/local/bin/kustomize \
+    && rm -rf /tmp/kustomize.tar.gz
+
+# helm (pinned to v3.16.4 for compatibility with kustomize --enable-helm)
+RUN HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') \
+    && curl -o /tmp/helm.tar.gz -L "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+    && tar -C /tmp/ -zxvf /tmp/helm.tar.gz \
+    && mv /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && chmod +x /usr/local/bin/helm \
+    && rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+
+# kompose
+RUN KOMPOSE_VERSION=$(curl -s https://api.github.com/repos/kubernetes/kompose/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') \
+    && curl -L "https://github.com/kubernetes/kompose/releases/download/${KOMPOSE_VERSION}/kompose-linux-amd64" -o kompose \
+    && chmod +x kompose \
+    && mv ./kompose /usr/local/bin/kompose
+
+# kind
+RUN KIND_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') \
+    && curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-$(uname)-amd64" \
+    && chmod +x /usr/local/bin/kind
+
+# dotnet SDK
+RUN apk add --no-cache dotnet10-sdk
+
+# task
+RUN curl -1sLf 'https://dl.cloudsmith.io/public/task/task/setup.alpine.sh' | bash \
+    && apk add --no-cache task
+
+#--------------- MCP Specific Tools ----------------#
+# Node.js, npm, npx (for MCP servers)
+RUN apk add --no-cache nodejs npm
+
+# Alias for kubectl
+# Add both aliases to your Dockerfile
+RUN echo 'alias k="kubectl"' >> /root/.bashrc \
+    && echo 'alias k="kubectl"' >> /root/.profile \
+    && echo 'alias kk="kubectl kustomize"' >> /root/.bashrc \
+    && echo 'alias kk="kubectl kustomize"' >> /root/.profile \
+    && echo 'complete -o default -F __start_kubectl k' >> /root/.bashrc \
+    && echo 'complete -o default -F __start_kubectl k' >> /root/.profile
+
+CMD ["/bin/bash", "-c", "sleep infinity"]

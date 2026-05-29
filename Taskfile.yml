@@ -1,0 +1,29 @@
+version: '3'
+
+includes:
+  grafana-cloud:
+    taskfile: ./kubernetes/testing-cases/grafana-cloud/Taskfile.yml
+    dir: '{{.ROOT_DIR}}'
+    vars:
+      KIND_CLUSTER_NAME: '{{.KIND_CLUSTER_NAME}}'
+
+vars:
+  KIND_CLUSTER_NAME: grafana
+
+tasks:
+  start-cluster:
+    desc: Create the KIND cluster and wait until nodes are ready
+    cmds:
+      - kind create cluster --name "{{.KIND_CLUSTER_NAME}}" --config=kind-cluster.yaml
+      - kubectl wait --for=condition=Ready nodes --all --timeout=180s
+
+  stop-cluster:
+    desc: Delete the KIND cluster
+    cmds:
+      - kind delete cluster --name "{{.KIND_CLUSTER_NAME}}"
+
+  test-grafana-cloud:
+    desc: Spin up cluster and deploy the full grafana-cloud stack
+    cmds:
+      - task: start-cluster
+      - task: grafana-cloud:full-setup
