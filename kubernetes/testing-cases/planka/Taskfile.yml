@@ -1,0 +1,58 @@
+version: '3'
+
+tasks:
+  full-setup:
+    desc: Run the full Planka setup — namespace, secret, PVCs, deploy, wait, port-forward
+    cmds:
+      - task: create-namespace
+      - task: create-secret
+      - task: deploy
+      - task: wait
+      - task: port-forward
+
+  create-namespace:
+    desc: Create the planka namespace
+    cmds:
+      - kubectl apply -f {{.TASKFILE_DIR}}/0-namespace.yaml
+
+  generate-secret-key:
+    desc: Generate a random 64-byte hex secret key (copy into your .env as PLANKA_SECRET_KEY)
+    cmds:
+      - openssl rand -hex 64
+
+  create-secret:
+    desc: Create the planka-config Kubernetes secret from .env values
+    dotenv: ['{{.TASKFILE_DIR}}/.env']
+    cmds:
+      - |
+        kubectl create secret generic planka-config \
+          --namespace planka \
+          --from-literal=SECRET_KEY="$PLANKA_SECRET_KEY" \
+          --from-literal=DEFAULT_ADMIN_EMAIL="$PLANKA_ADMIN_EMAIL" \
+          --from-literal=DEFAULT_ADMIN_PASSWORD="$PLANKA_ADMIN_PASSWORD" \
+          --from-literal=DEFAULT_ADMIN_NAME="$PLANKA_ADMIN_NAME" \
+          || echo "WARNING: Secret 'planka-config' may already exist. Continuing..."
+
+  deploy:
+    desc: Apply all Planka Kubernetes manifests (PVCs, Postgres, Planka)
+    cmds:
+      - kubectl apply -f {{.TASKFILE_DIR}}/1-pvc.yaml
+      - kubectl apply -f {{.TASKFILE_DIR}}/2-postgres.yaml
+      - kubectl apply -f {{.TASKFILE_DIR}}/3-planka.yaml
+
+  wait:
+    desc: Wait for Postgres and Planka deployments to be ready
+    cmds:
+      - kubectl rollout status deployment/postgres -n planka --timeout=120s
+      - kubectl rollout status deployment/planka -n planka --timeout=120s
+
+  port-forward:
+    desc: Port-forward Planka to http://localhost:3000
+    cmds:
+      - kubectl port-forward svc/planka 3000:3000 -n planka
+
+  teardown:
+    desc: Delete the entire planka namespace and all its resources (destructive!)
+    prompt: This will delete the planka namespace and all data. Are you sure?
+    cmds:
+      - kubectl delete namespace planka

@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: planka
+  namespace: planka
+  labels:
+    app: planka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: planka
+  template:
+    metadata:
+      labels:
+        app: planka
+    spec:
+      containers:
+      - name: planka
+        image: ghcr.io/plankanban/planka:latest
+        ports:
+        - containerPort: 1337
+          name: http
+        env:
+        - name: BASE_URL
+          value: http://localhost:3000
+        - name: DATABASE_URL
+          value: postgresql://postgres@postgres/planka
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: planka-config
+              key: SECRET_KEY
+        - name: DEFAULT_ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: planka-config
+              key: DEFAULT_ADMIN_EMAIL
+        - name: DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: planka-config
+              key: DEFAULT_ADMIN_PASSWORD
+        - name: DEFAULT_ADMIN_NAME
+          valueFrom:
+            secretKeyRef:
+              name: planka-config
+              key: DEFAULT_ADMIN_NAME
+        - name: TRUST_PROXY
+          value: "true"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 1337
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 1337
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: planka-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: planka
+  namespace: planka
+spec:
+  selector:
+    app: planka
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 1337
